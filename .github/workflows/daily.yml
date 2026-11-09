@@ -1,0 +1,39 @@
+name: Daily listing check
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run checker
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python Scraper.py
+      - name: Notify
+        if: hashFiles('alert.txt') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="$(head -n 1 alert.txt)"
+          tail -n +2 alert.txt > body.txt
+          gh issue create --title "$title" --body-file body.txt
+          rm alert.txt body.txt
+      - name: Save results
+        run: |
+          git config user.name "listing-watch"
+          git config user.email "listing-watch@users.noreply.github.com"
+          git add docs/
+          git diff --cached --quiet || git commit -m "Daily listing check"
+          git push
